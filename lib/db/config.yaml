@@ -1,0 +1,9 @@
+database:
+  hostport: "0.0.0.0:8084"
+  userpassword: "root:password"
+  db: store_business_engine
+
+
+hostport: "0.0.0.0:9090"
+datapath: "/Users/guoxiaoshuang/project/label-backend/static"
+
