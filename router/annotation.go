@@ -3,8 +3,10 @@ package router
 import (
 	`fmt`
 	`io/ioutil`
+	`os`
 	`path/filepath`
 	`strings`
+	`time`
 	
 	`github.com/bitly/go-simplejson`
 	`github.com/gin-gonic/gin`
@@ -15,12 +17,49 @@ import (
 	`label-backend/model`
 )
 
+func GetTimeFormat(timestamp int64) string {
+	cstSh, _ := time.LoadLocation("Asia/Shanghai")
+	return time.Unix(timestamp, 0).In(cstSh).Format("2006-01-02 15:04:05")
+}
+
+func AnnotationQalist(c *gin.Context){
+	videoName := c.Query("videoName")
+	logrus.Infof("videoName : %s",videoName)
+	ret , err := GetTrackListByDb(videoName)
+	if err != nil{
+		logrus.Errorf("[GetTrackListByDb] error err =%+v",err)
+		Response(c, "1000",err.Error(),nil)
+		return
+	}
+	
+	mp := make(map[string][]string)
+	for _, track := range ret{
+		if track.MarkedByOrigin == ""{
+			continue
+		}
+		mp[track.MarkedByOrigin] = append(mp[track.MarkedByOrigin] , track.TrackId)
+	}
+	
+	trackRespList := make([]*TrackQA, 0)
+	for  trackId, list := range mp{
+		trackRespList = append(trackRespList,&TrackQA{
+			TrackId:trackId,
+			LabelList: list,
+		})
+	}
+	data := TrackQAList{
+		List:  trackRespList,
+	}
+	Response(c, "0","",data)
+}
+
 func Annotationlist(c *gin.Context){
 		videoName := c.Query("videoName")
 		logrus.Infof("videoName : %s",videoName)
 		if !db.IsTrackInfoVideoNameHave(videoName) {
 			list  ,err := GetTrackListByDataList(videoName)
 			if err != nil{
+				logrus.Errorf("[GetTrackListByDataList] error err =%+v",err)
 				Response(c, "1000",err.Error(),nil)
 				return
 			}
@@ -30,18 +69,33 @@ func Annotationlist(c *gin.Context){
 		}
 		ret , err := GetTrackListByDb(videoName)
 		if err != nil{
+			logrus.Errorf("[GetTrackListByDb] error err =%+v",err)
 			Response(c, "1000",err.Error(),nil)
 			return
 		}
-		Response(c, "0","",ret)
+		data := TrackList{
+			List:  ret,
+		}
+		Response(c, "0","",data)
 }
 
 func GetTrackListByDb(videoName string)([]*TrackListResp, error){
 	ret := make([]*TrackListResp, 0)
-	list, err := db.GetTrackInfoListoByVideoName(videoName)
+	list1, err := db.GetTrackInfoListoByVideoName(videoName)
 	if err != nil{
 		return nil, err
 	}
+	list:=make([]*model.TrackInfo,0)
+	orderList  := make([]*model.TrackInfo,0)
+	
+	for _, item := range list1{
+		if item.LabelTrackId != ""{
+			orderList = append(orderList, item)
+		}else{
+			list = append(list, item)
+		}
+	}
+	list = append(list, orderList...)
 	for _, item := range list{
 		state := 0
 		if item.LabelTrackId != ""{
@@ -51,22 +105,47 @@ func GetTrackListByDb(videoName string)([]*TrackListResp, error){
 		if err != nil{
 			return nil ,err
 		}
-		ret = append(ret, &TrackListResp{
+		
+		filterTrackIdList := make([]string, 0)
+		for _, item := range trackIDList{
+			if item == ""{
+				continue
+			}
+			filterTrackIdList = append(filterTrackIdList, item)
+		}
+		newTrack := &TrackListResp{
 			TrackId: item.TrackId,
-			StartTime:  int(item.StartTime),
+			StartTime: GetTimeFormat(int64(item.StartTime)/1000),
+			EndTime:  GetTimeFormat(int64(item.EndTime)/1000),
 			State:state,
-			RealedList: trackIDList,
-		})
+			RealedList: filterTrackIdList,
+			Dest: item.Dest,
+			TrackDuration: int(item.EndTime)/1000 - int(item.StartTime)/1000,
+		}
+		if state == 1{
+			newTrack.MarkedByOrigin = item.LabelTrackId
+		}
+		ret = append(ret, newTrack)
+		
 	}
 	return ret, nil
 }
 
 func GetTrackListByDataList(videoName string)([]*model.TrackInfo, error){
 	ret := make([]*model.TrackInfo, 0)
-	videoNamePath := filepath.Join(config.Conf.DataPath, videoName+".json")
+	videoNamePath := ""
+	filepath.Walk(config.Conf.DataPath, func(path string, info os.FileInfo, err error) error {
+		if !info.IsDir(){
+			if strings.Contains(info.Name(),videoName){
+				videoNamePath = path
+			}
+		}
+		return nil
+	})
+	logrus.Infof("[GetTrackListByDataList] videoName : %s videoNamePath: %s ",videoName,videoNamePath)
 	byte, _ := ioutil.ReadFile(videoNamePath)
 	js, err  := simplejson.NewJson(byte)
-	if  err != nil{
+	if  err != nil {
 		return nil, err
 	}
 	mp , err := js.Map()
@@ -79,7 +158,12 @@ func GetTrackListByDataList(videoName string)([]*model.TrackInfo, error){
 			Videoname:  videoName,
 		}
 		startTime , _ := js.Get(track).Get("start_time").Int()
+		endTime  , _ := js.Get(track).Get("end_time").Int()
+		desc  , _ := js.Get(track).Get("dets").Int()
 		trackInfo.StartTime = uint64(startTime)
+		trackInfo.EndTime = uint64(endTime)
+		trackInfo.Dest = desc
+		logrus.Infof("endTime : %v",endTime)
 		list, _ := js.Get(track).Get("candidates").Array()
 		str := ""
 		for i, item := range list{
@@ -104,9 +188,41 @@ func AnnotationSubmit(c *gin.Context){
 		return
 	}
 	annotationList := req.AnnotationList
-	for _, item := range annotationList{
-		db.UpdateTrackInfo(req.VideoName, item, req.TrackId)
+	labelTrackId := req.TrackId
+	if len(req.MergeList) > 0 {
+		mergeId, ok, err := chekoutMergeList(req.VideoName, req.MergeList)
+		if err != nil {
+			Response(c, "2000", err.Error(), nil)
+		}
+		if ok {
+			labelTrackId = mergeId
+			annotationList = append(annotationList, req.MergeList...)
+		}
 	}
-	db.UpdateTrackInfo(req.VideoName, req.TrackId, req.TrackId)
+	for _, item := range annotationList{
+		db.UpdateTrackInfo(req.VideoName, item, labelTrackId)
+	}
+	db.UpdateTrackInfo(req.VideoName, req.TrackId, labelTrackId)
 	Response(c, "0", "successful", nil)
+}
+
+
+func chekoutMergeList(videoName string , mergeList []string)(mergeId string, ok bool, err error){
+	for _, item := range mergeList{
+		trackInfo , err := db.GetTrackInfoByVideoNameAndTrackId(videoName, item)
+		if err != nil{
+			return "", false, err
+		}
+		if mergeId == ""{
+			mergeId = trackInfo.LabelTrackId
+		}
+		if trackInfo.LabelTrackId != mergeId{
+			ok = false
+			return"", false, err
+		}
+	}
+	if mergeId != "" {
+		ok = true
+	}
+	return
 }

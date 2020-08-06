@@ -25,8 +25,25 @@ func AbortResponse(c *gin.Context, code string, msg string, data interface{}) {
 }
 
 type TrackListResp struct {
-	TrackId string `json:"trackId"`	
-	StartTime int `json:"start_time"`
-	State  int `json:"state"`
-	RealedList []string `json:"relatedList"`
+	TrackId        string   `json:"trackId"`
+	StartTime      string      `json:"start_time"`
+	EndTime        string   `json:"end_time"`
+	State          int      `json:"state"`
+	MarkedByOrigin string   `json:"markedByOrigin,omitempty"`
+	RealedList     []string `json:"relatedList"`
+	Dest           int      `json:"dets"`
+	TrackDuration  int `json:"trackDuration"`
+}
+
+type TrackList struct {
+	List []*TrackListResp `json:"trackList"`
+}
+
+type TrackQA struct {
+	TrackId string `json:"trackId"`
+	LabelList []string `json:"LabelList"`
+}
+
+type TrackQAList struct {
+	List []*TrackQA `json:"trackList"`
 }

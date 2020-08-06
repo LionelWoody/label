@@ -32,6 +32,7 @@ func InitDB() {
 	DB.DB().SetConnMaxLifetime(60 * time.Second)
 	DB.DB().SetMaxIdleConns(40)
 	DB.DB().SetMaxOpenConns(300)
+	InitDBTable()
 }
 
 func InitDBTable(){
@@ -60,6 +61,15 @@ func GetTrackInfoByVideoName(videoName string) (*model.TrackInfo,error){
 	return &trackInfo, nil
 }
 
+func GetTrackInfoByVideoNameAndTrackId(videoName , trackId string) (*model.TrackInfo,error){
+	var trackInfo model.TrackInfo
+	err := DB.Model(&model.TrackInfo{}).Where("videoname = ?",videoName).Where("track_id = ?",trackId).Find(&trackInfo).Error
+	if err != nil{
+		return nil, err
+	}
+	return &trackInfo, nil
+}
+
 func UpdateTrackInfo(videoName , trackId,labelTrackId string) (*model.TrackInfo,error){
 	var trackInfo model.TrackInfo
 	err := DB.Model(&model.TrackInfo{}).Where("videoname = ? ",videoName).Where("track_id =?",trackId).Update("label_track_id",labelTrackId).Error
@@ -79,7 +89,7 @@ func IsTrackInfoVideoNameHave(videoName string)bool{
 
 func GetTrackInfoListoByVideoName(videoName string) ([]*model.TrackInfo,error){
 	var trackInfo []*model.TrackInfo
-	err := DB.Model(&model.TrackInfo{}).Where("videoname = ?",videoName).Find(&trackInfo).Error
+	err := DB.Model(&model.TrackInfo{}).Where("videoname = ?",videoName).Order("start_time asc").Find(&trackInfo).Error
 	if err != nil{
 		return nil, err
 	}
