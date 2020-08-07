@@ -24,6 +24,7 @@ func  Route(r *gin.Engine){
 		g.GET("/annotation/list" , Annotationlist)
 		g.GET("/annotation/qa/list" , AnnotationQalist)
 		g.POST("/annotation/submit", AnnotationSubmit)
-		g.POST("/annotation/delete",)
+		g.POST("/annotation/delete",AnnotationDelete)
+		g.POST("/annotation/relabel",AnnotationRelabel)
 	}
 }

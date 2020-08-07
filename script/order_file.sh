@@ -5,7 +5,8 @@ order_static()
   do
   if test -d $file
   then
-  echo http://gpu604.aibee.cn:9090/v1/annotation/list?videoName=${file:26:48} >> ./video_url.csv
+  echo http://gpu604.aibee.cn:9090/?videoName=${file:26:48} >> ./video_url.csv
+  echo http://gpu604.aibee.cn:9090/group?videoName=${file:26:48} >> ./video_url.csv
   fi
   done
 }

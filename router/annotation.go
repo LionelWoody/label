@@ -5,6 +5,8 @@ import (
 	`io/ioutil`
 	`os`
 	`path/filepath`
+	`sort`
+	`strconv`
 	`strings`
 	`time`
 	
@@ -25,28 +27,47 @@ func GetTimeFormat(timestamp int64) string {
 func AnnotationQalist(c *gin.Context){
 	videoName := c.Query("videoName")
 	logrus.Infof("videoName : %s",videoName)
-	ret , err := GetTrackListByDb(videoName)
+	ret , err := db.GetTrackInfoListoByVideoName(videoName, false)
 	if err != nil{
 		logrus.Errorf("[GetTrackListByDb] error err =%+v",err)
 		Response(c, "1000",err.Error(),nil)
 		return
 	}
 	
-	mp := make(map[string][]string)
+	mp := make(map[string][]*TrackListResp)
 	for _, track := range ret{
-		if track.MarkedByOrigin == ""{
+		if track.LabelTrackId == ""{
 			continue
 		}
-		mp[track.MarkedByOrigin] = append(mp[track.MarkedByOrigin] , track.TrackId)
+		state := 0
+		if track.LabelTrackId != ""{
+			state  = 1
+		}
+		mp[track.LabelTrackId] = append(mp[track.LabelTrackId] , &TrackListResp{
+			StartTime: GetTimeFormat(int64(track.StartTime)/1000),
+			EndTime:  GetTimeFormat(int64(track.EndTime)/1000),
+			State:state,
+			Dest: track.Dest,
+			TrackDuration: int(track.EndTime)/1000 - int(track.StartTime)/1000,
+			TrackId: track.TrackId,
+		})
 	}
 	
 	trackRespList := make([]*TrackQA, 0)
 	for  trackId, list := range mp{
+		for i := 0; i < len(list);i++{
+			if list[i].TrackId == trackId{
+				list[i], list[0]  = list[0],list[i]
+			}
+		}
 		trackRespList = append(trackRespList,&TrackQA{
 			TrackId:trackId,
 			LabelList: list,
 		})
 	}
+	sort.Slice(trackRespList, func(i, j int) bool {
+		return trackRespList[i].TrackId < trackRespList[j].TrackId
+	})
 	data := TrackQAList{
 		List:  trackRespList,
 	}
@@ -55,6 +76,8 @@ func AnnotationQalist(c *gin.Context){
 
 func Annotationlist(c *gin.Context){
 		videoName := c.Query("videoName")
+		isRelabel := c.Query("isRelabel")
+		isRelabelInt, _ := strconv.Atoi(isRelabel)
 		logrus.Infof("videoName : %s",videoName)
 		if !db.IsTrackInfoVideoNameHave(videoName) {
 			list  ,err := GetTrackListByDataList(videoName)
@@ -67,7 +90,7 @@ func Annotationlist(c *gin.Context){
 				db.InsertTrackInfo(item)
 			}
 		}
-		ret , err := GetTrackListByDb(videoName)
+		ret , err := GetTrackListByDb(videoName, isRelabelInt == 1)
 		if err != nil{
 			logrus.Errorf("[GetTrackListByDb] error err =%+v",err)
 			Response(c, "1000",err.Error(),nil)
@@ -79,9 +102,9 @@ func Annotationlist(c *gin.Context){
 		Response(c, "0","",data)
 }
 
-func GetTrackListByDb(videoName string)([]*TrackListResp, error){
+func GetTrackListByDb(videoName string, isRelabel bool)([]*TrackListResp, error){
 	ret := make([]*TrackListResp, 0)
-	list1, err := db.GetTrackInfoListoByVideoName(videoName)
+	list1, err := db.GetTrackInfoListoByVideoName(videoName, isRelabel)
 	if err != nil{
 		return nil, err
 	}
@@ -189,7 +212,7 @@ func AnnotationSubmit(c *gin.Context){
 	}
 	annotationList := req.AnnotationList
 	labelTrackId := req.TrackId
-	if len(req.MergeList) > 0 {
+	if len(req.MergeList) > 0 && req.IsRelabel == 0{
 		mergeId, ok, err := chekoutMergeList(req.VideoName, req.MergeList)
 		if err != nil {
 			Response(c, "2000", err.Error(), nil)
@@ -203,6 +226,37 @@ func AnnotationSubmit(c *gin.Context){
 		db.UpdateTrackInfo(req.VideoName, item, labelTrackId)
 	}
 	db.UpdateTrackInfo(req.VideoName, req.TrackId, labelTrackId)
+	Response(c, "0", "successful", nil)
+}
+func AnnotationDelete(c *gin.Context){
+	var req AnnotationDeleteReq
+	
+	err := c.BindJSON(&req)
+	if err != nil{
+		c.JSON(400, err.Error())
+		return
+	}
+	err = db.SetTrackInfoNil(req.VideoName, req.TrackId)
+	if err != nil{
+		Response(c, "1000", err.Error(), nil)
+		return
+	}
+	Response(c, "0", "successful", nil)
+}
+
+func AnnotationRelabel(c *gin.Context){
+	var req AnnotationDeleteReq
+	
+	err := c.BindJSON(&req)
+	if err != nil{
+		c.JSON(400, err.Error())
+		return
+	}
+	err = db.SetTrackInfoReLabel(req.VideoName, req.TrackId)
+	if err != nil{
+		Response(c, "1000", err.Error(), nil)
+		return
+	}
 	Response(c, "0", "successful", nil)
 }
 

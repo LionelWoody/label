@@ -17,6 +17,7 @@ type TrackInfo struct {
 	Dest         int    `gorm:"column:dest;  comment '视频名称'"`
 	Candidates   string `gorm:"column:candidates; type:text;"`
 	LabelTrackId string `gorm:"column:label_track_id; type:varchar(128)  not null  default ' ' comment '标注的轨迹id'"`
+	IsLabel       int   `gorm:"column:is_relabel; comment '是否重标'"`
 }
 
 func (TrackInfo) TableName() string {

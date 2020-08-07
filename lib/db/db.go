@@ -70,9 +70,27 @@ func GetTrackInfoByVideoNameAndTrackId(videoName , trackId string) (*model.Track
 	return &trackInfo, nil
 }
 
+func SetTrackInfoReLabel(videoName , trackId string) error{
+	return DB.Model(&model.TrackInfo{}).Where("videoname = ? ",videoName).Where("label_track_id =?",trackId).Updates(map[string]interface{}{"label_track_id": "","is_relabel" :1}).Error
+}
+
+func SetTrackInfoNil(videoName , trackId string) error{
+	return DB.Model(&model.TrackInfo{}).Where("videoname = ? ",videoName).Where("track_id =?",trackId).Updates(map[string]interface{}{"label_track_id": "","is_relabel" :1}).Error
+}
+
+
 func UpdateTrackInfo(videoName , trackId,labelTrackId string) (*model.TrackInfo,error){
 	var trackInfo model.TrackInfo
-	err := DB.Model(&model.TrackInfo{}).Where("videoname = ? ",videoName).Where("track_id =?",trackId).Update("label_track_id",labelTrackId).Error
+	err := DB.Model(&model.TrackInfo{}).Where("videoname = ? ",videoName).Where("track_id =?",trackId).Updates(map[string]interface{}{"label_track_id": labelTrackId,"is_relabel" :0}).Error
+	if err != nil{
+		return nil, err
+	}
+	return &trackInfo, nil
+}
+
+func UpdateRelabelTrackInfo(videoName , trackId,labelTrackId string) (*model.TrackInfo,error){
+	var trackInfo model.TrackInfo
+	err := DB.Model(&model.TrackInfo{}).Where("videoname = ? ",videoName).Where("label_track_id =?",trackId).Updates(map[string]interface{}{"label_track_id": labelTrackId,"is_relabel" :2}).Error
 	if err != nil{
 		return nil, err
 	}
@@ -87,9 +105,13 @@ func IsTrackInfoVideoNameHave(videoName string)bool{
 	return true
 }
 
-func GetTrackInfoListoByVideoName(videoName string) ([]*model.TrackInfo,error){
+func GetTrackInfoListoByVideoName(videoName string ,  isRelabel bool) ([]*model.TrackInfo,error){
 	var trackInfo []*model.TrackInfo
-	err := DB.Model(&model.TrackInfo{}).Where("videoname = ?",videoName).Order("start_time asc").Find(&trackInfo).Error
+	db := DB.Model(&model.TrackInfo{}).Where("videoname = ?",videoName)
+	if  isRelabel{
+		db = db.Where("is_relabel = ?", 1)
+	}
+	err := db.Find(&trackInfo).Error
 	if err != nil{
 		return nil, err
 	}

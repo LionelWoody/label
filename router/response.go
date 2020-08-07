@@ -30,7 +30,7 @@ type TrackListResp struct {
 	EndTime        string   `json:"end_time"`
 	State          int      `json:"state"`
 	MarkedByOrigin string   `json:"markedByOrigin,omitempty"`
-	RealedList     []string `json:"relatedList"`
+	RealedList     []string `json:"relatedList,omitempty"`
 	Dest           int      `json:"dets"`
 	TrackDuration  int `json:"trackDuration"`
 }
@@ -41,7 +41,7 @@ type TrackList struct {
 
 type TrackQA struct {
 	TrackId string `json:"trackId"`
-	LabelList []string `json:"LabelList"`
+	LabelList []*TrackListResp `json:"labelList"`
 }
 
 type TrackQAList struct {
