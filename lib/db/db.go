@@ -38,13 +38,12 @@ func InitDB() {
 func InitDBTable(){
 	err := DB.AutoMigrate(&model.TrackInfo{}).Error
 	if err != nil {
-		panic("table init error : " + err.Error())
+		panic("table track info init error : " + err.Error())
 	}
 	
-	logrus.Infof("start create userInfo")
-	err = DB.AutoMigrate(&model.TrackInfo{}).Error
+	err = DB.AutoMigrate(&model.RecordInfo{}).Error
 	if err != nil {
-		panic("table userinfo init error : " + err.Error())
+		panic("table record info init error : " + err.Error())
 	}
 }
 

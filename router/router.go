@@ -1,30 +1,31 @@
 package router
 
 import (
-	`net/http`
-	
-	`github.com/gin-gonic/gin`
-	
-	`label-backend/config`
-	`label-backend/middleware`
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+
+	"label-backend/config"
+	"label-backend/middleware"
 )
 
-func Init(){
+func Init() {
 	r := gin.Default()
 	Route(r)
 	r.Run(config.Conf.HostPort)
 }
 
-func  Route(r *gin.Engine){
+func Route(r *gin.Engine) {
 	r.Use(gin.Recovery())
 	r.Use(middleware.TrackLogMiddleware())
-	r.StaticFS("/data",http.Dir(config.Conf.DataPath))
-	g:= r.Group("/v1")
+	r.StaticFS("/data", http.Dir(config.Conf.DataPath))
+	g := r.Group("/v1")
 	{
-		g.GET("/annotation/list" , Annotationlist)
-		g.GET("/annotation/qa/list" , AnnotationQalist)
+		g.GET("/annotation/list", Annotationlist)
+		g.GET("/annotation/qa/list", AnnotationQalist)
 		g.POST("/annotation/submit", AnnotationSubmit)
-		g.POST("/annotation/delete",AnnotationDelete)
-		g.POST("/annotation/relabel",AnnotationRelabel)
+		g.POST("/annotation/delete", AnnotationDelete)
+		g.POST("/annotation/rejectGroup", AnnotationRelabel)
+		g.POST("/annotation/recordTime", RecordTime)
 	}
 }
